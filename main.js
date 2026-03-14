@@ -3,12 +3,13 @@
 // ============================================================
 let user        = null;
 let slots       = [];
-let viewDay     = new Date().getDay();           // sidebar / mobile settings preview
-let addDays     = new Set([new Date().getDay()]); // add-form multi-select
+let viewDay     = new Date().getDay();            // sidebar / mobile settings preview
+let addDays     = new Set([new Date().getDay()]);  // add-form multi-select
 let selColor    = COLORS[0];
 let notifTimers = [];
 let clockTick   = null;
 let isSignup    = false;
+let editingId   = null;  // null = 追加モード、uuid = 編集モード
 
 // ============================================================
 // UTILITIES
@@ -126,17 +127,17 @@ function updateClock() {
 
   if (current) {
     bar.className = 'current-event-bar';
-    bar.style.borderLeftColor = current.color;
-    bar.style.background      = current.color + '18';
-    dot.style.background      = current.color;
+    bar.style.borderColor  = current.color;
+    bar.style.background   = current.color + '18';
+    dot.style.background   = current.color;
     lbl.innerHTML  = current.label + (isOvernightSlot(current) ? overnightTag() : '');
     tim.textContent= `${floatToHHMM(current.start_hour)} — ${floatToHHMM(current.end_hour)}`;
-    nxt.textContent= next ? `次: ${next.label}\n${floatToHHMM(next.start_hour)}〜` : '';
+    nxt.textContent= next ? `次: ${next.label}  ${floatToHHMM(next.start_hour)}〜` : '';
   } else {
     bar.className = 'current-event-bar empty';
-    bar.style.borderLeftColor = '';
-    bar.style.background      = '';
-    dot.style.background      = '';
+    bar.style.borderColor  = '';
+    bar.style.background   = '';
+    dot.style.background   = '';
     lbl.innerHTML  = '予定なし';
     tim.textContent= '';
     nxt.textContent= next ? `次: ${next.label}  ${floatToHHMM(next.start_hour)}〜` : '';
@@ -186,6 +187,12 @@ function renderSidebar() {
           <div class="sb-slot-label">${s.label}${oTag}</div>
           <div class="sb-slot-time">${floatToHHMM(s.start_hour)}–${floatToHHMM(s.end_hour)}</div>
         </div>
+        <button class="btn-icon" data-edit-id="${s.id}" title="編集" style="width:24px;height:24px;padding:2px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
         <button class="btn-icon danger" data-id="${s.id}" title="削除" style="width:24px;height:24px;padding:2px">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
@@ -194,6 +201,12 @@ function renderSidebar() {
       </div>`;
   }).join('');
 
+  el.querySelectorAll('[data-edit-id]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const slot = slots.find(s => s.id === btn.dataset.editId);
+      if (slot) startEdit(slot);
+    })
+  );
   el.querySelectorAll('.btn-icon.danger').forEach(btn =>
     btn.addEventListener('click', () => deleteSlot(btn.dataset.id))
   );
@@ -252,6 +265,12 @@ function renderMobileSettings() {
           <div class="settings-slot-label">${s.label}${oTag}</div>
           <div class="settings-slot-time">${floatToHHMM(s.start_hour)} — ${floatToHHMM(s.end_hour)}</div>
         </div>
+        <button class="btn-icon" data-edit-id="${s.id}" title="編集">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
         <button class="btn-icon danger" data-id="${s.id}" title="削除">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
@@ -259,6 +278,13 @@ function renderMobileSettings() {
         </button>
       </div>`;
   }).join('');
+
+  el.querySelectorAll('[data-edit-id]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const slot = slots.find(s => s.id === btn.dataset.editId);
+      if (slot) startEdit(slot);
+    })
+  );
   el.querySelectorAll('.btn-icon.danger').forEach(btn =>
     btn.addEventListener('click', () => deleteSlot(btn.dataset.id))
   );
@@ -316,6 +342,54 @@ function renderAll() {
 }
 
 // ============================================================
+// EDIT MODE
+// ============================================================
+function startEdit(slot) {
+  editingId = slot.id;
+  selColor  = slot.color;
+
+  document.getElementById('in-start').value  = floatToHHMM(slot.start_hour);
+  document.getElementById('in-end').value    = floatToHHMM(slot.end_hour);
+  document.getElementById('in-label').value  = slot.label;
+  document.getElementById('in-notify').value = String(slot.notify_before);
+
+  document.getElementById('add-form-title').textContent        = '✎ 予定を編集';
+  document.getElementById('btn-add').textContent               = '更新';
+  document.getElementById('btn-cancel-edit').style.display     = 'block';
+  document.getElementById('add-day-pills-group').style.display = 'none';
+  document.querySelector('.add-form-card').classList.add('editing');
+  document.getElementById('add-error').textContent = '';
+
+  renderColorPicker();
+
+  // 設定タブに移動してフォームまでスクロール
+  switchTab('settings');
+  setTimeout(() => {
+    document.getElementById('add-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 80);
+}
+
+function cancelEdit() {
+  editingId = null;
+  selColor  = COLORS[0];
+
+  document.getElementById('in-start').value  = '09:00';
+  document.getElementById('in-end').value    = '10:00';
+  document.getElementById('in-label').value  = '';
+  document.getElementById('in-notify').value = '5';
+
+  document.getElementById('add-form-title').textContent        = '＋ 予定を追加';
+  document.getElementById('btn-add').textContent               = '追加';
+  document.getElementById('btn-cancel-edit').style.display     = 'none';
+  document.getElementById('add-day-pills-group').style.display = '';
+  document.querySelector('.add-form-card').classList.remove('editing');
+  document.getElementById('add-error').textContent = '';
+
+  renderColorPicker();
+  renderAddDayPills();
+}
+
+// ============================================================
 // CRUD
 // ============================================================
 async function fetchSlots() {
@@ -336,27 +410,50 @@ async function addSlot() {
   const sh = timeToFloat(startVal), eh = timeToFloat(endVal);
   if (sh === eh) { errEl.textContent = '開始と終了が同じ時刻です'; return; }
 
-  const daysArr = [...addDays];
   const btn = document.getElementById('btn-add');
-  btn.disabled = true; btn.textContent = `${daysArr.length}曜日に追加中…`;
+  btn.disabled = true;
 
-  const { error } = await db.from(TABLE).insert(daysArr.map(d => ({
-    user_id: user.id, day_of_week: d, start_hour: sh, end_hour: eh,
-    label: labelVal, color: selColor, notify_before: notifyVal
-  })));
+  if (editingId) {
+    // ── 編集モード: UPDATE ──
+    btn.textContent = '更新中…';
+    const { error } = await db.from(TABLE).update({
+      start_hour: sh, end_hour: eh,
+      label: labelVal, color: selColor, notify_before: notifyVal
+    }).eq('id', editingId);
 
-  btn.disabled = false; btn.textContent = '追加';
-  if (error) { errEl.textContent = error.message; return; }
+    btn.disabled = false; btn.textContent = '更新';
+    if (error) { errEl.textContent = error.message; return; }
 
-  document.getElementById('in-label').value = '';
+    cancelEdit();
+
+  } else {
+    // ── 追加モード: INSERT ──
+    const daysArr = [...addDays];
+    btn.textContent = `${daysArr.length}曜日に追加中…`;
+
+    const { error } = await db.from(TABLE).insert(daysArr.map(d => ({
+      user_id: user.id, day_of_week: d, start_hour: sh, end_hour: eh,
+      label: labelVal, color: selColor, notify_before: notifyVal
+    })));
+
+    btn.disabled = false; btn.textContent = '追加';
+    if (error) { errEl.textContent = error.message; return; }
+
+    document.getElementById('in-label').value = '';
+  }
+
   await fetchSlots();
   renderAll();
   scheduleNotifs();
 }
 
 async function deleteSlot(id) {
+  if (!confirm('この予定を削除しますか？')) return;
   const { error } = await db.from(TABLE).delete().eq('id', id);
-  if (error) { console.error(error.message); return; }
+  if (error) {
+    alert('削除に失敗しました: ' + error.message);
+    return;
+  }
   await fetchSlots();
   renderAll();
   scheduleNotifs();
@@ -382,7 +479,7 @@ function scheduleNotifs() {
   });
 }
 
-async function requestNotifPermission(bannerId) {
+async function requestNotifPermission() {
   const perm = await Notification.requestPermission();
   document.getElementById('notif-banner').style.display    = 'none';
   document.getElementById('notif-banner-sb').style.display = 'none';
@@ -478,23 +575,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('auth-screen').style.display = 'flex';
   });
 
-  document.getElementById('btn-allow-notif').addEventListener('click', () => requestNotifPermission());
-  document.getElementById('btn-allow-notif-sb').addEventListener('click', () => requestNotifPermission());
+  document.getElementById('btn-allow-notif').addEventListener('click', requestNotifPermission);
+  document.getElementById('btn-allow-notif-sb').addEventListener('click', requestNotifPermission);
   document.getElementById('btn-add').addEventListener('click', addSlot);
+  document.getElementById('btn-cancel-edit').addEventListener('click', cancelEdit);
 
   // Restore session
   const { data: { session } } = await db.auth.getSession();
   if (session) { user = session.user; await bootApp(); }
 });
-
-async function deleteSlot(id) {
-  if (!confirm('この予定を削除しますか？')) return;
-  const { error } = await db.from(TABLE).delete().eq('id', id);
-  if (error) {
-    alert('削除に失敗しました: ' + error.message);
-    return;
-  }
-  await fetchSlots();
-  renderAll();
-  scheduleNotifs();
-}

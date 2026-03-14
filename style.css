@@ -434,3 +434,26 @@
 
       .clock-time { font-size: clamp(2.6rem, 5vw, 3.4rem); }
     }
+
+    /* 編集モードキャンセルボタン */
+.btn-cancel {
+  display: none; /* JS で block に切り替え */
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.55rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--sub);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-cancel:hover { background: var(--bg); }
+
+/* 編集モード中のフォームカード強調 */
+.add-form-card.editing {
+  border-color: var(--accent-mid);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
