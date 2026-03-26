@@ -4,7 +4,7 @@
 const { createClient } = supabase;
 const db = createClient(
   'https://abfuanjincelcyrlswsp.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFiZnVhbmppbmNlbGN5cmxzd3NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NjE4MDIsImV4cCI6MjA4MzQzNzgwMn0.OD7371E7A1ZRiqF6SGXnp2JSzPowg2zTt-V36GQ7x9A'
+  'sb_publishable_uZuTU24T38xW7iAsXJIQ-g_OfuLjyjJ'
 );
 
 const TABLE        = 'weekly_schedule';
